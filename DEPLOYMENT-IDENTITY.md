@@ -57,7 +57,9 @@ it cannot be attributed to anyone.
 
 `canon verify-deployment manifest=<path>`:
 
-1. Parse the manifest JSON. Malformed → exit 2 (usage).
+1. Parse the manifest JSON. Malformed → exit 3 (integrity failure, not
+   usage: a malformed manifest is untrusted input, per the CLI convention
+   0 ok / 2 usage / 3 integrity failure / 4 semantic failure).
 2. Split `signature` from the payload; recompute canonical bytes;
    `ed25519_dalek::VerifyingKey::verify`. Invalid → print
    `UNKNOWN` (tampered or unknown key) and exit 3. The constitution is
