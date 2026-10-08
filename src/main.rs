@@ -521,6 +521,92 @@ fn cmd_snapshot() -> ExitCode {
     }
 }
 
+fn cmd_deploy_identity(kv: &BTreeMap<String, String>, rest: &[String]) -> ExitCode {
+    // canon deploy-identity gen-key
+    // canon deploy-identity name=<deployment> key=<secret-key-hex-file>
+    if rest.first().map(|s| s.as_str()) == Some("gen-key") {
+        if let Err(e) = reject_unknown(kv, &[]) {
+            return e;
+        }
+        use ed25519_dalek::SigningKey;
+        use rand_core::OsRng;
+        let sk = SigningKey::generate(&mut OsRng);
+        let vk = sk.verifying_key();
+        println!("TEST-KEY — NOT FOR PRODUCTION. Ephemeral only; never use for production.");
+        println!(
+            "secret={}",
+            sk.to_bytes().iter().map(|b| format!("{:02x}", b)).collect::<String>()
+        );
+        println!(
+            "public={}",
+            vk.to_bytes().iter().map(|b| format!("{:02x}", b)).collect::<String>()
+        );
+        return ExitCode::from(0);
+    }
+    if let Err(e) = reject_unknown(kv, &["name", "key"]) {
+        return e;
+    }
+    let name = kv.get("name").cloned().unwrap_or_default();
+    let key_path = kv.get("key").cloned().unwrap_or_default();
+    if name.is_empty() || key_path.is_empty() {
+        eprintln!("deploy-identity requires name=<deployment> key=<secret-key-hex-file>, or: deploy-identity gen-key");
+        return ExitCode::from(2);
+    }
+    let sk = match canon::deploy::load_signing_key(&key_path) {
+        Ok(k) => k,
+        Err(e) => {
+            eprintln!("deploy-identity: {}", e);
+            return ExitCode::from(2);
+        }
+    };
+    match canon::deploy::issue_manifest(&name, &sk) {
+        Ok(manifest) => {
+            println!("{}", manifest);
+            ExitCode::from(0)
+        }
+        Err(e) => {
+            eprintln!("deploy-identity: {}", e);
+            ExitCode::from(3)
+        }
+    }
+}
+
+fn cmd_verify_deployment(kv: &BTreeMap<String, String>) -> ExitCode {
+    if let Err(e) = reject_unknown(kv, &["manifest"]) {
+        return e;
+    }
+    let path = kv.get("manifest").cloned().unwrap_or_default();
+    if path.is_empty() {
+        eprintln!("verify-deployment requires manifest=<path>");
+        return ExitCode::from(2);
+    }
+    let text = match std::fs::read_to_string(&path) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("verify-deployment: cannot read manifest: {}", e);
+            return ExitCode::from(2);
+        }
+    };
+    let report = canon::deploy::verify_manifest(&text);
+    for line in &report.detail {
+        println!("{}", line);
+    }
+    match report.verdict {
+        canon::deploy::Verdict::Match => {
+            println!("verdict: MATCH");
+            ExitCode::from(0)
+        }
+        canon::deploy::Verdict::Mismatch => {
+            println!("verdict: MISMATCH");
+            ExitCode::from(4)
+        }
+        canon::deploy::Verdict::Unknown => {
+            println!("verdict: UNKNOWN");
+            ExitCode::from(3)
+        }
+    }
+}
+
 fn cmd_audit() -> ExitCode {
     let mut failures: Vec<String> = Vec::new();
     let mut warnings: Vec<String> = Vec::new();
@@ -594,7 +680,7 @@ fn cmd_audit() -> ExitCode {
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.is_empty() {
-        eprintln!("usage: canon add-principle|add-contract|add-decision|supersede|search|context|audit|snapshot k=v...");
+        eprintln!("usage: canon add-principle|add-contract|add-decision|supersede|search|context|audit|snapshot|deploy-identity|verify-deployment k=v...");
         return ExitCode::from(2);
     }
     let cmd = args[0].as_str();
@@ -603,12 +689,24 @@ fn main() -> ExitCode {
             let q = args.get(1).cloned().unwrap_or_default();
             cmd_search(&q)
         }
-        "context" | "audit" | "snapshot" | "add-principle" | "add-contract" | "add-decision" | "supersede" => {
+        "deploy-identity" => {
+            // deploy-identity gen-key | deploy-identity name= key=
+            // ("gen-key" is a bare word, not k=v, so split it out of kv.)
+            let rest: Vec<String> = args[1..]
+                .iter()
+                .filter(|a| !a.contains('='))
+                .cloned()
+                .collect();
+            let kv = kv(&args[1..]);
+            cmd_deploy_identity(&kv, &rest)
+        }
+        "context" | "audit" | "snapshot" | "verify-deployment" | "add-principle" | "add-contract" | "add-decision" | "supersede" => {
             let kv = kv(&args[1..]);
             match cmd {
                 "context" => cmd_context(&kv),
                 "audit" => cmd_audit(),
                 "snapshot" => cmd_snapshot(),
+                "verify-deployment" => cmd_verify_deployment(&kv),
                 "add-principle" => cmd_add_principle(&kv),
                 "add-contract" => cmd_add_contract(&kv),
                 "add-decision" => cmd_add_decision(&kv),
@@ -617,7 +715,7 @@ fn main() -> ExitCode {
             }
         }
         _ => {
-            eprintln!("unknown command. try: add-principle add-contract add-decision supersede search context audit snapshot");
+            eprintln!("unknown command. try: add-principle add-contract add-decision supersede search context audit snapshot deploy-identity verify-deployment");
             ExitCode::from(2)
         }
     }

@@ -3,5 +3,6 @@
 pub mod api;
 pub mod cjson;
 pub mod context;
+pub mod deploy;
 pub mod store;
 pub mod time;
