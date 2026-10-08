@@ -1,0 +1,2 @@
+{"actor":"lucidota","created_at":"2026-10-08T18:05:38Z","hash":"d106b8af0a3c4b36f7171fb3e7258bf1eaa43eb25a849288e32560d564513056","id":"PL-C-OLD","kind":"contract","prev_hash":"GENESIS","schema":1,"status":"active","subject":"probes","text":"Old probe rule."}
+{"actor":"lucidota","created_at":"2026-10-08T18:05:38Z","hash":"2396acc089270ad5bc08185093fa8e2cfd8b45b876552a02ff22f0a68dfd81ff","id":"PL-C-NEW","kind":"contract","prev_hash":"d106b8af0a3c4b36f7171fb3e7258bf1eaa43eb25a849288e32560d564513056","schema":1,"status":"active","subject":"probes","text":"New probe rule."}
