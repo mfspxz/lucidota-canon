@@ -178,10 +178,22 @@ pub fn build(project: &str) -> Result<Receipt, StoreError> {
     for p in &principles {
         let id = strf(p, "id");
         let st = status_of(&id, &strf(p, "status"));
-        push(
-            &mut b,
-            &format!("{} [{}] [{}] {}", id, strf(p, "severity"), st, strf(p, "text")),
-        );
+        // schema-2 records carry `statement`; schema-1 seeds carry `text`.
+        let stmt = {
+            let s = strf(p, "statement");
+            if s.is_empty() {
+                strf(p, "text")
+            } else {
+                s
+            }
+        };
+        let mut line = format!("{} [{}] [{}] {}", id, strf(p, "severity"), st, stmt);
+        // §56: the enforcement point is the machine-readable part — surface it.
+        let ep = strf(p, "enforcement_point");
+        if !ep.is_empty() {
+            line.push_str(&format!(" :: enforce: {}", ep));
+        }
+        push(&mut b, &line);
     }
     push(&mut b, "");
     push(&mut b, "ACTIVE CONTRACTS");

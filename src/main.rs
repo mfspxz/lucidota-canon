@@ -2,10 +2,7 @@
 //! CANON records what a project must be / was decided / was superseded.
 //! PL records what was observed and verified. Neither impersonates the other.
 //! Exit codes: 0 ok, 2 usage, 3 integrity failure, 4 semantic failure.
-mod cjson;
-mod context;
-mod store;
-mod time;
+use canon::{context, store, time};
 
 use serde_json::{json, Map, Value};
 use std::collections::BTreeMap;
@@ -34,26 +31,103 @@ fn find_id(id: &str) -> Result<Option<(String, Map<String, Value>)>, StoreError>
     Ok(None)
 }
 
-fn cmd_add_principle(kv: &BTreeMap<String, String>) -> ExitCode {
-    let id = kv.get("id").cloned().unwrap_or_default();
-    let text = kv.get("text").cloned().unwrap_or_default();
-    let severity = kv.get("severity").cloned().unwrap_or_default();
-    if id.is_empty() || text.is_empty() {
-        eprintln!("add-principle requires id= text= severity=advisory|required|non_negotiable");
-        return ExitCode::from(2);
+/// Parse a list-valued field: JSON array string → array; anything else →
+/// single-element array. Keeps alternatives/errors machine-readable.
+fn as_list(v: &str) -> Value {
+    let t = v.trim();
+    if t.starts_with('[') {
+        if let Ok(Value::Array(a)) = serde_json::from_str(t) {
+            return Value::Array(a);
+        }
     }
-    if !["advisory", "required", "non_negotiable"].contains(&severity.as_str()) {
-        eprintln!("severity must be advisory|required|non_negotiable");
+    json!([v])
+}
+
+/// Reject unknown k=v arguments: never silently dropped, never smuggled.
+/// Unknown arguments are a usage error (exit 2); unknown FIELDS at the
+/// store API level are a semantic error (exit 4) via validate_new.
+fn reject_unknown(kv: &BTreeMap<String, String>, known: &[&str]) -> Result<(), ExitCode> {
+    let unknown: Vec<&str> = kv
+        .keys()
+        .filter(|k| !known.contains(&k.as_str()))
+        .map(|s| s.as_str())
+        .collect();
+    if !unknown.is_empty() {
+        eprintln!(
+            "unknown argument(s): {} — rejected, never silently dropped",
+            unknown.join(", ")
+        );
+        return Err(ExitCode::from(2));
+    }
+    Ok(())
+}
+
+fn cmd_add_principle(kv: &BTreeMap<String, String>) -> ExitCode {
+    if let Err(e) = reject_unknown(
+        kv,
+        &[
+            "id", "statement", "text", "scope", "authority", "enforcement_point",
+            "violation_behavior", "evidence_method", "severity", "status",
+            "rationale", "rfc_ref", "supersedes",
+        ],
+    ) {
+        return e;
+    }
+    // §56: ID/STATEMENT/SCOPE/AUTHORITY/ENFORCEMENT POINT/VIOLATION
+    // BEHAVIOR/EVIDENCE METHOD. `text=` is a legacy alias for `statement=`
+    // (schema-1 seeds); `statement=` wins.
+    let id = kv.get("id").cloned().unwrap_or_default();
+    let statement = kv
+        .get("statement")
+        .or_else(|| kv.get("text"))
+        .cloned()
+        .unwrap_or_default();
+    let scope = kv.get("scope").cloned().unwrap_or_default();
+    let authority = kv.get("authority").cloned().unwrap_or_default();
+    let enforcement_point = kv.get("enforcement_point").cloned().unwrap_or_default();
+    let violation_behavior = kv.get("violation_behavior").cloned().unwrap_or_default();
+    let evidence_method = kv.get("evidence_method").cloned().unwrap_or_default();
+    let severity = kv.get("severity").cloned().unwrap_or_default();
+    let missing: Vec<&str> = [
+        ("id", &id),
+        ("statement", &statement),
+        ("scope", &scope),
+        ("authority", &authority),
+        ("enforcement_point", &enforcement_point),
+        ("violation_behavior", &violation_behavior),
+        ("evidence_method", &evidence_method),
+        ("severity", &severity),
+    ]
+    .iter()
+    .filter(|(_, v)| v.is_empty())
+    .map(|(k, _)| *k)
+    .collect();
+    if !missing.is_empty() {
+        eprintln!(
+            "add-principle requires id= statement= scope= authority= enforcement_point= violation_behavior= evidence_method= severity=advisory|required|non_negotiable; missing: {}",
+            missing.join(", ")
+        );
         return ExitCode::from(2);
     }
     let mut m = Map::new();
     m.insert("kind".into(), json!("principle"));
     m.insert("id".into(), json!(id.clone()));
-    m.insert("text".into(), json!(text));
+    m.insert("statement".into(), json!(statement));
+    m.insert("scope".into(), json!(scope));
+    m.insert("authority".into(), json!(authority));
+    m.insert("enforcement_point".into(), json!(enforcement_point));
+    m.insert("violation_behavior".into(), json!(violation_behavior));
+    m.insert("evidence_method".into(), json!(evidence_method));
     m.insert("severity".into(), json!(severity));
     m.insert("status".into(), json!(kv.get("status").cloned().unwrap_or("active".into())));
     if let Some(r) = kv.get("rationale") {
         m.insert("rationale".into(), json!(r));
+    }
+    if let Some(r) = kv.get("rfc_ref") {
+        m.insert("rfc_ref".into(), json!(r));
+    }
+    if let Some(s) = kv.get("supersedes") {
+        m.insert("supersedes".into(), json!(s));
     }
     match store::append("constitution", m) {
         Ok(()) => {
@@ -71,11 +145,53 @@ fn cmd_add_principle(kv: &BTreeMap<String, String>) -> ExitCode {
 }
 
 fn cmd_add_contract(kv: &BTreeMap<String, String>) -> ExitCode {
-    let id = kv.get("id").cloned().unwrap_or_default();
-    let subject = kv.get("subject").cloned().unwrap_or_default();
-    let text = kv.get("text").cloned().unwrap_or_default();
-    if id.is_empty() || subject.is_empty() || text.is_empty() {
-        eprintln!("add-contract requires id= subject= text=");
+    if let Err(e) = reject_unknown(
+        kv,
+        &[
+            "id", "subject", "text", "inputs", "outputs", "errors",
+            "authorization", "side_effects", "determinism", "version",
+            "evidence_requirements", "constitution", "decisions", "status",
+        ],
+    ) {
+        return e;
+    }
+    // §56/A3: every externally meaningful interface gets input/output/
+    // errors/authorization/side effects/determinism/version/evidence
+    // requirements — machine-readable, not prose.
+    let get = |k: &str| kv.get(k).cloned().unwrap_or_default();
+    let id = get("id");
+    let subject = get("subject");
+    let text = get("text");
+    let inputs = get("inputs");
+    let outputs = get("outputs");
+    let errors = get("errors");
+    let authorization = get("authorization");
+    let side_effects = get("side_effects");
+    let determinism = get("determinism");
+    let version = get("version");
+    let evidence_requirements = get("evidence_requirements");
+    let missing: Vec<&str> = [
+        ("id", &id),
+        ("subject", &subject),
+        ("text", &text),
+        ("inputs", &inputs),
+        ("outputs", &outputs),
+        ("errors", &errors),
+        ("authorization", &authorization),
+        ("side_effects", &side_effects),
+        ("determinism", &determinism),
+        ("version", &version),
+        ("evidence_requirements", &evidence_requirements),
+    ]
+    .iter()
+    .filter(|(_, v)| v.is_empty())
+    .map(|(k, _)| *k)
+    .collect();
+    if !missing.is_empty() {
+        eprintln!(
+            "add-contract requires id= subject= text= inputs= outputs= errors= authorization= side_effects= determinism= version= evidence_requirements=; missing: {}",
+            missing.join(", ")
+        );
         return ExitCode::from(2);
     }
     // no dangling constitution refs (C1: no implicit authority)
@@ -98,14 +214,47 @@ fn cmd_add_contract(kv: &BTreeMap<String, String>) -> ExitCode {
             return ExitCode::from(3);
         }
     }
+    // no dangling decision refs either
+    let drefs: Vec<String> = kv
+        .get("decisions")
+        .map(|s| s.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect())
+        .unwrap_or_default();
+    if !drefs.is_empty() {
+        match store::read_strict("decisions") {
+            Ok(decisions) => {
+                let idx = store::index(&decisions);
+                for r in &drefs {
+                    if !idx.contains_key(r) {
+                        eprintln!("dangling decision ref {:?} — no such decision", r);
+                        return ExitCode::from(4);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("{}", e);
+                return ExitCode::from(3);
+            }
+        }
+    }
     let mut m = Map::new();
     m.insert("kind".into(), json!("contract"));
     m.insert("id".into(), json!(id.clone()));
     m.insert("subject".into(), json!(subject));
     m.insert("text".into(), json!(text));
+    m.insert("inputs".into(), json!(inputs));
+    m.insert("outputs".into(), json!(outputs));
+    m.insert("errors".into(), as_list(&errors));
+    m.insert("authorization".into(), json!(authorization));
+    m.insert("side_effects".into(), json!(side_effects));
+    m.insert("determinism".into(), json!(determinism));
+    m.insert("version".into(), json!(version));
+    m.insert("evidence_requirements".into(), json!(evidence_requirements));
     m.insert("status".into(), json!(kv.get("status").cloned().unwrap_or("active".into())));
     if !refs.is_empty() {
         m.insert("constitution".into(), json!(refs));
+    }
+    if !drefs.is_empty() {
+        m.insert("decisions".into(), json!(drefs));
     }
     match store::append("contracts", m) {
         Ok(()) => {
@@ -123,24 +272,78 @@ fn cmd_add_contract(kv: &BTreeMap<String, String>) -> ExitCode {
 }
 
 fn cmd_add_decision(kv: &BTreeMap<String, String>) -> ExitCode {
+    if let Err(e) = reject_unknown(
+        kv,
+        &[
+            "id", "question", "title", "decision", "alternatives", "reason",
+            "rationale", "evidence", "author", "status", "supersedes",
+            "rejected_alternative",
+        ],
+    ) {
+        return e;
+    }
+    // §56/A4: decision_id/question/decision/alternatives/reason/evidence/
+    // author/timestamp. `rationale=` accepted as legacy alias for `reason=`;
+    // `rejected_alternative=` folds into the alternatives list.
     let id = kv.get("id").cloned().unwrap_or_default();
-    let title = kv.get("title").cloned().unwrap_or_default();
+    let question = kv.get("question").cloned().unwrap_or_default();
     let decision = kv.get("decision").cloned().unwrap_or_default();
-    let rationale = kv.get("rationale").cloned().unwrap_or_default();
-    if id.is_empty() || title.is_empty() || decision.is_empty() || rationale.is_empty() {
-        eprintln!("add-decision requires id= title= decision= rationale=");
+    let reason = kv
+        .get("reason")
+        .or_else(|| kv.get("rationale"))
+        .cloned()
+        .unwrap_or_default();
+    let evidence = kv.get("evidence").cloned().unwrap_or_default();
+    let alt_raw = kv.get("alternatives").cloned().unwrap_or_default();
+    let missing: Vec<&str> = [
+        ("id", &id),
+        ("question", &question),
+        ("decision", &decision),
+        ("alternatives", &alt_raw),
+        ("reason", &reason),
+        ("evidence", &evidence),
+    ]
+    .iter()
+    .filter(|(_, v)| v.is_empty())
+    .map(|(k, _)| *k)
+    .collect();
+    if !missing.is_empty() {
+        eprintln!(
+            "add-decision requires id= question= decision= alternatives= reason= evidence= [title= author= supersedes=]; missing: {}",
+            missing.join(", ")
+        );
         return ExitCode::from(2);
+    }
+    let mut alts: Vec<Value> = match as_list(&alt_raw) {
+        Value::Array(a) => a,
+        v => vec![v],
+    };
+    if let Some(r) = kv.get("rejected_alternative") {
+        let s = json!(r);
+        if !alts.contains(&s) {
+            alts.push(s);
+        }
     }
     let mut m = Map::new();
     m.insert("kind".into(), json!("decision"));
     m.insert("id".into(), json!(id.clone()));
-    m.insert("title".into(), json!(title));
+    m.insert("question".into(), json!(question));
     m.insert("decision".into(), json!(decision));
-    m.insert("rationale".into(), json!(rationale));
+    m.insert("alternatives".into(), Value::Array(alts));
+    m.insert("reason".into(), json!(reason));
+    m.insert("evidence".into(), json!(evidence));
     m.insert("status".into(), json!(kv.get("status").cloned().unwrap_or("active".into())));
-    if let Some(r) = kv.get("rejected_alternative") {
-        m.insert("rejected_alternative".into(), json!(r));
+    if let Some(t) = kv.get("title") {
+        m.insert("title".into(), json!(t));
     }
+    if let Some(s) = kv.get("supersedes") {
+        m.insert("supersedes".into(), json!(s));
+    }
+    // author is explicit (§56); timestamp comes from created_at (UTC ISO).
+    m.insert(
+        "author".into(),
+        json!(kv.get("author").cloned().unwrap_or("lucidota".into())),
+    );
     match store::append("decisions", m) {
         Ok(()) => {
             println!("decision {} recorded", id);
@@ -157,6 +360,9 @@ fn cmd_add_decision(kv: &BTreeMap<String, String>) -> ExitCode {
 }
 
 fn cmd_supersede(kv: &BTreeMap<String, String>) -> ExitCode {
+    if let Err(e) = reject_unknown(kv, &["from", "to", "reason"]) {
+        return e;
+    }
     let from = kv.get("from").cloned().unwrap_or_default();
     let to = kv.get("to").cloned().unwrap_or_default();
     let reason = kv.get("reason").cloned().unwrap_or_default();
@@ -268,6 +474,9 @@ fn cmd_search(query: &str) -> ExitCode {
 }
 
 fn cmd_context(kv: &BTreeMap<String, String>) -> ExitCode {
+    if let Err(e) = reject_unknown(kv, &["project"]) {
+        return e;
+    }
     let project = kv.get("project").cloned().unwrap_or("canon".into());
     match context::build(&project) {
         Ok(r) => {

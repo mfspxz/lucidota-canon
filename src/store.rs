@@ -10,7 +10,10 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 
-pub const SCHEMA: i64 = 1;
+pub const SCHEMA: i64 = 2;
+/// Schema 1 records (prose-only seeds) remain readable — grandfathered.
+/// New appends always write schema 2 with the full §56 field set.
+pub const SCHEMA_MIN_READ: i64 = 1;
 pub const GENESIS: &str = "GENESIS";
 pub const PROTOCOL: i64 = 1;
 
@@ -87,12 +90,12 @@ pub fn read_strict(kind: &str) -> Result<Vec<Map<String, Value>>, StoreError> {
             msg: "top-level must be an object".into(),
         })?.clone();
         match m.get("schema").and_then(|v| v.as_i64()) {
-            Some(1) => {}
+            Some(s) if s >= SCHEMA_MIN_READ && s <= SCHEMA => {}
             other => {
                 return Err(StoreError::Corrupt {
                     file: fname.clone(),
                     line: ln,
-                    msg: format!("unsupported schema: {:?}", other),
+                    msg: format!("unsupported schema: {:?} (readable: {}..={})", other, SCHEMA_MIN_READ, SCHEMA),
                 })
             }
         }
@@ -101,10 +104,123 @@ pub fn read_strict(kind: &str) -> Result<Vec<Map<String, Value>>, StoreError> {
     Ok(out)
 }
 
+/// Required user-supplied fields for a schema-2 record of `kind`.
+/// §56: every invariant carries ID/STATEMENT/SCOPE/AUTHORITY/ENFORCEMENT
+/// POINT/VIOLATION BEHAVIOR/EVIDENCE METHOD — no prose-only rules are
+/// claimed as enforced.
+pub fn required_fields(kind: &str) -> &'static [&'static str] {
+    match kind {
+        "constitution" => &[
+            "id", "statement", "scope", "authority", "enforcement_point",
+            "violation_behavior", "evidence_method", "severity", "status",
+        ],
+        "contracts" => &[
+            "id", "subject", "text", "inputs", "outputs", "errors",
+            "authorization", "side_effects", "determinism", "version",
+            "evidence_requirements", "status",
+        ],
+        "decisions" => &[
+            "id", "question", "decision", "alternatives", "reason",
+            "evidence", "status",
+        ],
+        "supersessions" => &["from", "to", "reason"],
+        _ => &[],
+    }
+}
+
+/// Full allowlist of user-supplied fields for schema-2 records.
+/// Anything outside this list is rejected: unknown fields cannot smuggle
+/// semantics (e.g. a fake "verified" flag) into CANON.
+pub fn allowed_fields(kind: &str) -> &'static [&'static str] {
+    match kind {
+        "constitution" => &[
+            "kind", "id", "statement", "scope", "authority", "enforcement_point",
+            "violation_behavior", "evidence_method", "severity", "status",
+            "rationale", "rfc_ref", "supersedes",
+        ],
+        "contracts" => &[
+            "kind", "id", "subject", "text", "inputs", "outputs", "errors",
+            "authorization", "side_effects", "determinism", "version",
+            "evidence_requirements", "constitution", "decisions", "status",
+        ],
+        "decisions" => &[
+            "kind", "id", "question", "title", "decision", "alternatives",
+            "reason", "evidence", "author", "status", "supersedes",
+        ],
+        "supersessions" => &["kind", "from", "to", "reason"],
+        _ => &[],
+    }
+}
+
+/// Expected `kind` field value per record kind.
+pub fn kind_value(kind: &str) -> &'static str {
+    match kind {
+        "constitution" => "principle",
+        "contracts" => "contract",
+        "decisions" => "decision",
+        "supersessions" => "supersession",
+        _ => "",
+    }
+}
+
+/// Fail-closed validation of a new record before it enters the chain.
+/// Missing required field, empty required field, wrong kind tag, or any
+/// field outside the allowlist → StoreError::Semantic (exit 4).
+pub fn validate_new(kind: &str, e: &Map<String, Value>) -> Result<(), StoreError> {
+    let kv = kind_value(kind);
+    match e.get("kind").and_then(|v| v.as_str()) {
+        Some(k) if k == kv => {}
+        other => {
+            return Err(StoreError::Semantic(format!(
+                "{}: kind tag must be {:?}, got {:?}",
+                kind, kv, other
+            )))
+        }
+    }
+    let allowed = allowed_fields(kind);
+    for k in e.keys() {
+        if !allowed.contains(&k.as_str()) {
+            return Err(StoreError::Semantic(format!(
+                "{}: unknown field {:?} — not in schema-2 allowlist",
+                kind, k
+            )));
+        }
+    }
+    for f in required_fields(kind) {
+        let ok = match e.get(*f) {
+            Some(Value::String(s)) => !s.trim().is_empty(),
+            Some(Value::Array(a)) => !a.is_empty(),
+            Some(_) => true,
+            None => false,
+        };
+        if !ok {
+            return Err(StoreError::Semantic(format!(
+                "{}: required field {:?} missing or empty (§56 freeze)",
+                kind, f
+            )));
+        }
+    }
+    // severity is an enum, not free prose
+    if kind == "constitution" {
+        match e.get("severity").and_then(|v| v.as_str()) {
+            Some("advisory") | Some("required") | Some("non_negotiable") => {}
+            other => {
+                return Err(StoreError::Semantic(format!(
+                    "constitution: severity must be advisory|required|non_negotiable, got {:?}",
+                    other
+                )))
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Append with exclusive lock, chain link, fsync. All-or-nothing.
 /// Rejects duplicate ids within the kind (C2: no silent mutation).
+/// Schema-2 validation runs before anything is written (fail-closed).
 pub fn append(kind: &str, mut e: Map<String, Value>) -> Result<(), StoreError> {
     use fs2::FileExt;
+    validate_new(kind, &e)?;
     let path = file_for(kind)?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| StoreError::Io(e.to_string()))?;
