@@ -1,0 +1,342 @@
+{
+ "generated_from": "constitution.jsonl schema-2 INV-* records (§56 freeze)",
+ "generated_at": "2026-10-08",
+ "note": "Machine-readable projection of the frozen constitution. Source of truth remains the hash-chained constitution.jsonl; this file is a derived, loadable artifact.",
+ "invariants": [
+  {
+   "id": "INV-01",
+   "statement": "AI agents cannot self-certify. An AI assertion cannot create PL VERIFIED.",
+   "scope": "All verification and proof claims in CANON/PL workflows.",
+   "authority": "CANON constitution (RFC-002 §6 I1); enforced by the PL verifier, never by the AI.",
+   "enforcement_point": "PL verify pipeline: only PL execution may emit VERIFIED. The canon CLI has no command that writes a verification verdict.",
+   "violation_behavior": "Fail-closed: any record attempting to assert verification state is rejected (exit 4); existing claims are untouched; the attempt is ledgered.",
+   "evidence_method": "Attempt `canon add-principle ... verified=true` → rejected as unknown field; audit PL code for absence of any mark_proven path.",
+   "severity": "non_negotiable",
+   "rfc_ref": "I1",
+   "supersedes": "I1",
+   "enforcement": {
+    "status": "ENFORCED",
+    "points": [
+     {
+      "file": "src/main.rs",
+      "line": 683,
+      "note": "CLI command list: no command writes a verification verdict"
+     },
+     {
+      "file": "src/main.rs",
+      "line": 703,
+      "note": "command dispatch: same closed set"
+     },
+     {
+      "file": "src/store.rs",
+      "line": 134,
+      "note": "allowed_fields: no verdict/verified field exists in any schema-2 allowlist"
+     }
+    ]
+   }
+  },
+  {
+   "id": "INV-02",
+   "statement": "UNKNOWN is the default. Missing evidence never becomes positive state through inference.",
+   "scope": "All CANON queries, context receipts, and status derivations.",
+   "authority": "CANON constitution (RFC-002 §6 I2); enforced by canon search/context/audit.",
+   "enforcement_point": "canon search with no match prints an explicit NO ACTIVE DECISION FOUND marker; context receipt marks unavailable PL state as UNKNOWN, never blank.",
+   "violation_behavior": "Fail-closed: queries return an explicit UNKNOWN marker; no empty-success path exists.",
+   "evidence_method": "Run `canon search <gibberish>` → exit 0 with NO ACTIVE DECISION FOUND marker on stdout.",
+   "severity": "non_negotiable",
+   "rfc_ref": "I2",
+   "supersedes": "I2",
+   "enforcement": {
+    "status": "ENFORCED",
+    "points": [
+     {
+      "file": "src/main.rs",
+      "line": 471,
+      "note": "search with no match prints explicit NO ACTIVE DECISION FOUND marker"
+     },
+     {
+      "file": "src/context.rs",
+      "line": 252,
+      "note": "unavailable PL state marked UNKNOWN, never blank"
+     }
+    ]
+   }
+  },
+  {
+   "id": "INV-03",
+   "statement": "Evidence is not proof. Evidence exists independently of verification.",
+   "scope": "The CANON↔PL boundary; all claim/evidence references.",
+   "authority": "CANON constitution (RFC-002 §6 I3, §13-14).",
+   "enforcement_point": "Schema allowlist: CANON records have no verification-verdict field; context receipt queries PL live instead of caching verdicts.",
+   "violation_behavior": "Fail-closed: append with a verdict-like field is rejected as an unknown field (exit 4).",
+   "evidence_method": "Attempt `canon add-principle ... verified=true` → exit 2, argument rejected and never silently dropped; store-level unknown fields → exit 4.",
+   "severity": "non_negotiable",
+   "rfc_ref": "I3",
+   "supersedes": "I3",
+   "enforcement": {
+    "status": "ENFORCED",
+    "points": [
+     {
+      "file": "src/store.rs",
+      "line": 134,
+      "note": "allowed_fields: schema allowlist, no verification-verdict field"
+     },
+     {
+      "file": "src/store.rs",
+      "line": 169,
+      "note": "validate_new: unknown field -> StoreError::Semantic (exit 4)"
+     },
+     {
+      "file": "src/main.rs",
+      "line": 49,
+      "note": "reject_unknown: unknown CLI args rejected (exit 2), never silently dropped"
+     }
+    ]
+   }
+  },
+  {
+   "id": "INV-04",
+   "statement": "Verification executes. VERIFIED requires execution of an authorized verification procedure.",
+   "scope": "PL verification lifecycle; CANON's surfacing of PL state.",
+   "authority": "CANON constitution (RFC-002 §6 I4); procedure owned by the PL lane.",
+   "enforcement_point": "Context receipt surfaces PL FAILED dimensions as violations (V2); CANON never emits VERIFIED itself.",
+   "violation_behavior": "Degrade-open on read, closed on write: receipt marks PL state UNKNOWN when the pl binary is unavailable; no verdict is invented.",
+   "evidence_method": "Rename the pl binary away → `canon context` prints the unavailable-PL UNKNOWN marker.",
+   "severity": "non_negotiable",
+   "rfc_ref": "I4",
+   "supersedes": "I4",
+   "enforcement": {
+    "status": "ENFORCED",
+    "points": [
+     {
+      "file": "src/context.rs",
+      "line": 252,
+      "note": "PL FAILED dimensions surfaced as violations; CANON never emits VERIFIED itself"
+     }
+    ]
+   }
+  },
+  {
+   "id": "INV-05",
+   "statement": "Corruption is visible. Malformed canonical state cannot silently disappear.",
+   "scope": "All CANON store files (constitution/contracts/decisions/supersessions).",
+   "authority": "CANON constitution (RFC-002 §6 I5, §23-24); enforced by canon audit.",
+   "enforcement_point": "canon audit: read_strict fails on any malformed line; verify_chain fails on any hash/prev_hash mismatch (exit 3).",
+   "violation_behavior": "Fail-closed: audit exits 3; no partial or skipped-and-continued results are trusted.",
+   "evidence_method": "Hash-chain suite (tests/hashchain.rs): corruption, mid-file truncation, duplicate, malformed-record cases all green.",
+   "severity": "required",
+   "rfc_ref": "I5",
+   "supersedes": "I5",
+   "enforcement": {
+    "status": "ENFORCED",
+    "points": [
+     {
+      "file": "src/store.rs",
+      "line": 67,
+      "note": "read_strict: fails on any malformed line"
+     },
+     {
+      "file": "src/store.rs",
+      "line": 298,
+      "note": "verify_chain: fails on any hash/prev_hash mismatch (exit 3)"
+     }
+    ]
+   }
+  },
+  {
+   "id": "INV-06",
+   "statement": "History is immutable. Historical decisions and evidence are not rewritten.",
+   "scope": "All CANON stores and their git history.",
+   "authority": "CANON constitution (RFC-002 §6 I6).",
+   "enforcement_point": "Append-only CLI surface (no update/delete command exists); duplicate-id rejection; fs2 exclusive lock serializes writers; fsync before success.",
+   "violation_behavior": "No CLI path can mutate history; direct file edits are detected by audit (exit 3).",
+   "evidence_method": "Enumerate CLI commands — no update/delete; tamper test → `canon audit` FAIL exit 3.",
+   "severity": "non_negotiable",
+   "rfc_ref": "I6",
+   "supersedes": "I6",
+   "enforcement": {
+    "status": "ENFORCED",
+    "points": [
+     {
+      "file": "src/store.rs",
+      "line": 221,
+      "note": "append: exclusive fs2 lock serializes writers, fsync before success"
+     },
+     {
+      "file": "src/main.rs",
+      "line": 683,
+      "note": "CLI surface: no update/delete command exists"
+     },
+     {
+      "file": "src/store.rs",
+      "line": 228,
+      "note": "duplicate-id guard: no silent mutation"
+     }
+    ]
+   }
+  },
+  {
+   "id": "INV-07",
+   "statement": "Supersession is explicit. Replacing a requirement creates a new record linked to the old one.",
+   "scope": "Record lifecycle for constitution, contracts, decisions.",
+   "authority": "CANON constitution (RFC-002 §6 I7, §11-12).",
+   "enforcement_point": "canon supersede requires both endpoint ids to exist plus a reason; effective_status surfaces SUPERSEDED in search and context receipts.",
+   "violation_behavior": "Dangling endpoints rejected (exit 4); superseded records are never returned as active (C12).",
+   "evidence_method": "`canon supersede from=NOPE to=X reason=y` → exit 4; search output always carries the [STATUS] tag.",
+   "severity": "required",
+   "rfc_ref": "I7",
+   "supersedes": "I7",
+   "enforcement": {
+    "status": "ENFORCED",
+    "points": [
+     {
+      "file": "src/main.rs",
+      "line": 362,
+      "note": "cmd_supersede: requires from= to= reason="
+     },
+     {
+      "file": "src/main.rs",
+      "line": 377,
+      "note": "both endpoints must exist; dangling rejected (exit 4)"
+     }
+    ]
+   }
+  },
+  {
+   "id": "INV-08",
+   "statement": "Source truth and runtime truth differ. A source artifact cannot prove runtime behavior.",
+   "scope": "Context receipts; any reasoning about deployed behavior.",
+   "authority": "CANON constitution (RFC-002 §6 I8; RFC-002 §15).",
+   "enforcement_point": "Receipt records git revision AND working_tree state AND live PL state as three separate fields.",
+   "violation_behavior": "Receipt never conflates them: revision, DIRTY/CLEAN, and PL dimensions are printed on separate lines.",
+   "evidence_method": "`canon context` output contains distinct `revision:`, `working_tree:`, and CURRENT PL STATE sections.",
+   "severity": "non_negotiable",
+   "rfc_ref": "I8",
+   "supersedes": "I8",
+   "enforcement": {
+    "status": "ENFORCED",
+    "points": [
+     {
+      "file": "src/context.rs",
+      "line": 161,
+      "note": "revision: git revision printed as its own field"
+     },
+     {
+      "file": "src/context.rs",
+      "line": 162,
+      "note": "working_tree: DIRTY/CLEAN printed as its own field; live PL state separate"
+     }
+    ]
+   }
+  },
+  {
+   "id": "INV-09",
+   "statement": "Deployment and implementation differ. Compilation cannot prove deployment.",
+   "scope": "Thesis-defense gate model; release decisions.",
+   "authority": "CANON constitution (RFC-002 §6 I9).",
+   "enforcement_point": "Receipt PL STATE section separates implemented/deployed/proven per claim; no single done field exists in any schema.",
+   "violation_behavior": "Schema allowlist contains no done/deployed shortcut fields; any such field is rejected on append.",
+   "evidence_method": "Inspect schema-2 allowlists (store.rs allowed_fields) — no completion-shortcut fields present.",
+   "severity": "required",
+   "rfc_ref": "I9",
+   "supersedes": "I9",
+   "enforcement": {
+    "status": "ENFORCED",
+    "points": [
+     {
+      "file": "src/store.rs",
+      "line": 134,
+      "note": "allowed_fields: no done/deployed/shipped shortcut field exists in any allowlist"
+     }
+    ]
+   }
+  },
+  {
+   "id": "INV-10",
+   "statement": "Shipped has a formal definition: implemented VERIFIED and deployed VERIFIED and proven VERIFIED.",
+   "scope": "Release gating across the thesis-defense work order.",
+   "authority": "CANON constitution (RFC-002 §6 I10); work-order §B7. Computed by the PL lane.",
+   "enforcement_point": "CANON records the rule; PL computes overall=shipped. Receipt REQUIRED NEXT ACTION names the blocking dimension.",
+   "violation_behavior": "CANON cannot declare shipped — no command or field exists for it; receipt degrades to naming the next action.",
+   "evidence_method": "pl status --json overall field transitions only via PL verification events, never via CANON writes.",
+   "severity": "required",
+   "rfc_ref": "I10",
+   "supersedes": "I10",
+   "enforcement": {
+    "status": "ENFORCED",
+    "points": [
+     {
+      "file": "src/store.rs",
+      "line": 134,
+      "note": "canon side (negative): no shipped field exists; CANON cannot declare shipped"
+     },
+     {
+      "file": "src/main.rs",
+      "line": 683,
+      "note": "canon side (negative): no declare-shipped command exists"
+     }
+    ],
+    "scope_note": "Positive enforcement (PL computes overall=shipped) lives in ~/workspace/proof-ledger, out of canon scope and read-only per lane brief. Canon-side enforcement is the negative above: no field, no command, no path to declare shipped."
+   }
+  },
+  {
+   "id": "INV-11",
+   "statement": "Deterministic core. Truth determination MUST NOT depend on generative AI.",
+   "scope": "canon binary, audit, context receipts, hashing, tests.",
+   "authority": "CANON constitution (RFC-002 §6 I11).",
+   "enforcement_point": "Pure Rust, zero network, zero model calls; context(A)==context(A) is testable; receipt carries context_hash.",
+   "violation_behavior": "Any nondeterminism is a defect: receipt determinism is covered by an automated test.",
+   "evidence_method": "cargo test: receipt determinism + canonical-encoding determinism cases green; two `canon context` runs → identical context_hash.",
+   "severity": "non_negotiable",
+   "rfc_ref": "I11",
+   "supersedes": "I11",
+   "enforcement": {
+    "status": "ENFORCED",
+    "points": [
+     {
+      "file": "src/context.rs",
+      "line": 280,
+      "note": "receipt_deterministic_given_inputs: automated determinism test"
+     },
+     {
+      "file": "Cargo.toml",
+      "line": 9,
+      "note": "dependency list: fs2, serde_json, sha2, ed25519-dalek, rand_core/getrandom — zero network, zero model calls"
+     }
+    ]
+   }
+  },
+  {
+   "id": "INV-12",
+   "statement": "Authority is explicit. Every authoritative record has an identifiable origin.",
+   "scope": "All CANON records and their references.",
+   "authority": "CANON constitution (RFC-002 §6 I12; RFC-002 §32 authority matrix).",
+   "enforcement_point": "Every record carries actor + created_at (UTC ISO); contracts validate constitution/decision refs on append; audit re-checks dangling refs.",
+   "violation_behavior": "Dangling constitution ref → exit 4; anonymous mutation via the API is impossible (actor always stamped).",
+   "evidence_method": "`canon add-contract ... constitution=BOGUS` → exit 4 dangling-ref rejection.",
+   "severity": "required",
+   "rfc_ref": "I12",
+   "supersedes": "I12",
+   "enforcement": {
+    "status": "ENFORCED",
+    "points": [
+     {
+      "file": "src/store.rs",
+      "line": 265,
+      "note": "append stamps actor on every record; anonymous mutation impossible"
+     },
+     {
+      "file": "src/main.rs",
+      "line": 207,
+      "note": "dangling constitution ref rejected (exit 4)"
+     },
+     {
+      "file": "src/main.rs",
+      "line": 228,
+      "note": "dangling decision ref rejected (exit 4)"
+     }
+    ]
+   }
+  }
+ ]
+}
