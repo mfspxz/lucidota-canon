@@ -1,5 +1,29 @@
 # CHANGELOG — canon
 
+## 2026-10-08 — consumable interface + court integration (wave-4)
+
+- **`src/api.rs`**: `Canon::open()` (open + verify all four hash chains,
+  fail-closed), `active()` / `invariants()` / `by_id()` readers,
+  `heads()`, `normative_basis()`, `snapshot()`. Frozen §56 stores are
+  read-only through this API; writes stay on the CLI append path.
+  Fixed during build: a real ordering bug (id-sorting the opened stores
+  broke `heads()` — chain order is now preserved; sorting happens only
+  in read views) and a wrong test assertion (`schema` is a JSON number,
+  not a string).
+- **`canon snapshot`**: chain-verified normative-state snapshot as
+  canonical JSON (heads, active records, normative basis); exit 3 on any
+  chain break. `CANON_DIR` redirects the stores.
+- **Court integration** (`compute/court.py` v2): `derive_status` loads the
+  snapshot, fails closed to UNKNOWN on unverifiable normative state, and
+  records `canon: {context_hash, heads, normative_basis}` in every
+  verdict. Normative basis cited from CANON (INV-01/02/03/06), not
+  hardcoded. E2E: `compute/canon_court_e2e.py` — 13/13 green (bound
+  evidence → ESTABLISHED; forged bare-True → UNKNOWN; tampered canon →
+  UNKNOWN). Fixed a stale `derive_status(evidence, policy)` docstring.
+- **Docs**: RFC-002 §59, README (CLI + consumable interface), this log.
+- No changes to the frozen §56 stores: `canon audit` still green
+  (50 records).
+
 ## 2026-10-08 — §56 freeze (gate 2 IMPLEMENTED)
 
 - **Schema 2**: constitution records require ID/STATEMENT/SCOPE/AUTHORITY/

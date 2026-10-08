@@ -31,10 +31,24 @@ canon supersede from=<id> to=<id> reason=...
 canon search <query>
 canon context project=<name>
 canon audit
+canon snapshot          # chain-verified normative-state snapshot (canonical
+                        # JSON: heads, active records, normative basis);
+                        # exit 3 if any chain is broken — fail closed
 ```
 
 Exit codes: `0` ok · `2` usage (incl. unknown arguments — rejected, never
 silently dropped) · `3` integrity failure · `4` semantic failure.
+
+## Consumable interface
+
+CANON is a library as well as a CLI. `src/api.rs` exposes `Canon::open()`
+(open + verify all four hash chains, fail-closed), `active()` /
+`invariants()` / `by_id()` readers, `heads()`, `normative_basis()`, and
+`snapshot()`. The frozen §56 stores are read-only through this API —
+writes stay on the CLI append path. Cross-process consumers use
+`canon snapshot` (canonical JSON); `CANON_DIR` redirects the stores.
+The compute court derives every verdict under a verified canon state
+(see RFC-002 §59).
 
 ## Stores
 
@@ -48,9 +62,11 @@ required for new records; schema 1 is grandfathered readable.
 
 ## Layout
 
-- `src/` — `main.rs` (CLI), `store.rs` (hash-chained stores + schema-2
-  validation), `cjson.rs` (canonical JSON), `context.rs` (deterministic
-  context receipts), `time.rs`, `lib.rs`
+- `src/` — `main.rs` (CLI), `api.rs` (consumable library interface:
+  `Canon::open/heads/active/invariants/snapshot`), `store.rs`
+  (hash-chained stores + schema-2 validation), `cjson.rs` (canonical
+  JSON), `context.rs` (deterministic context receipts), `time.rs`,
+  `lib.rs`
 - `tests/hashchain.rs` — hash-chain correctness suite (12 cases)
 - `scripts/seed-56.py` — one-shot §56 seeding (already applied; kept for
   auditability)

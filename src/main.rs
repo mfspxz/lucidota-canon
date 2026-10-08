@@ -493,6 +493,34 @@ fn cmd_context(kv: &BTreeMap<String, String>) -> ExitCode {
     }
 }
 
+fn cmd_snapshot() -> ExitCode {
+    // Cross-process consumable interface: verified normative-state snapshot
+    // as canonical JSON. Fails closed (exit 3) on any chain break — a
+    // consumer must never derive authority from an unverified snapshot.
+    match canon::api::Canon::open() {
+        Ok(c) => match c.snapshot() {
+            Ok(v) => match canon::cjson::canonical(&v) {
+                Ok(s) => {
+                    println!("{}", s);
+                    ExitCode::from(0)
+                }
+                Err(e) => {
+                    eprintln!("snapshot serialize: {}", e);
+                    ExitCode::from(3)
+                }
+            },
+            Err(e) => {
+                eprintln!("snapshot: {}", e);
+                ExitCode::from(3)
+            }
+        },
+        Err(e) => {
+            eprintln!("snapshot: {}", e);
+            ExitCode::from(3)
+        }
+    }
+}
+
 fn cmd_audit() -> ExitCode {
     let mut failures: Vec<String> = Vec::new();
     let mut warnings: Vec<String> = Vec::new();
@@ -566,7 +594,7 @@ fn cmd_audit() -> ExitCode {
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.is_empty() {
-        eprintln!("usage: canon add-principle|add-contract|add-decision|supersede|search|context|audit k=v...");
+        eprintln!("usage: canon add-principle|add-contract|add-decision|supersede|search|context|audit|snapshot k=v...");
         return ExitCode::from(2);
     }
     let cmd = args[0].as_str();
@@ -575,11 +603,12 @@ fn main() -> ExitCode {
             let q = args.get(1).cloned().unwrap_or_default();
             cmd_search(&q)
         }
-        "context" | "audit" | "add-principle" | "add-contract" | "add-decision" | "supersede" => {
+        "context" | "audit" | "snapshot" | "add-principle" | "add-contract" | "add-decision" | "supersede" => {
             let kv = kv(&args[1..]);
             match cmd {
                 "context" => cmd_context(&kv),
                 "audit" => cmd_audit(),
+                "snapshot" => cmd_snapshot(),
                 "add-principle" => cmd_add_principle(&kv),
                 "add-contract" => cmd_add_contract(&kv),
                 "add-decision" => cmd_add_decision(&kv),
@@ -588,7 +617,7 @@ fn main() -> ExitCode {
             }
         }
         _ => {
-            eprintln!("unknown command. try: add-principle add-contract add-decision supersede search context audit");
+            eprintln!("unknown command. try: add-principle add-contract add-decision supersede search context audit snapshot");
             ExitCode::from(2)
         }
     }

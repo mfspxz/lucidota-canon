@@ -136,6 +136,30 @@ C1 No implicit authority (no record → UNKNOWN). C2 No silent mutation. C3 Supe
 
 Not "memory" — authority. Memory can be stale/probabilistic/incomplete. CANON is small, explicit, versioned, inspectable, hostile to ambiguity. Gives Muse somewhere to forget to, rather than somewhere to remember from.
 
+## 59. Consumable interface + court integration (wave-4, 2026-10-08)
+
+CANON is a library, not just a CLI. `src/api.rs` exposes `Canon::open()`
+(open + verify all four hash chains, fail-closed), `active()` /
+`invariants()` / `by_id()` readers, `heads()` (per-store chain heads —
+the stable normative-state identity), `normative_basis()` (ACTIVE
+invariant IDs whose statements cover given keywords), and `snapshot()`
+(machine-readable normative-state JSON). The CLI command
+`canon snapshot` emits the snapshot as canonical JSON; it verifies the
+chains first and exits 3 on any break — consumers must never derive
+authority from an unverified snapshot. `CANON_DIR` redirects the stores
+(tests use temp copies). The frozen §56 stores are read-only through
+this API; writes stay on the CLI append path.
+
+The compute court (`compute/court.py`, v2) derives every verdict UNDER a
+verified canon state: `derive_status` loads the snapshot, fails closed to
+UNKNOWN when the normative state is unverifiable ("canon integrity
+failure"), and records `canon: {context_hash, heads, normative_basis}`
+in the verdict. The normative basis for evidence binding is INV-01
+(assertion ≠ verification), INV-02 (UNKNOWN default), INV-03
+(evidence ≠ proof), INV-06 (history immutable) — cited from CANON, not
+hardcoded in the court. PL receipts remain the evidence boundary
+(§13-14): CANON says what must hold, PL says what was demonstrated.
+
 ## Deployment constraint (operator, 2026-10-08)
 
 CANON/PL consulting layer (MCP/bot queries) runs on Muse servers (local VM), NOT Cloudflare Workers — do not burn CF free tier on constant codebase reads. Codebase mirrored to Cloudflare via cheap storage (R2), not Workers, until paid tier. Recorded as decision D-CANON-001.
