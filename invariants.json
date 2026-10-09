@@ -19,12 +19,12 @@
     "points": [
      {
       "file": "src/main.rs",
-      "line": 683,
+      "line": 695,
       "note": "CLI command list: no command writes a verification verdict"
      },
      {
       "file": "src/main.rs",
-      "line": 703,
+      "line": 715,
       "note": "command dispatch: same closed set"
      },
      {
@@ -51,7 +51,7 @@
     "points": [
      {
       "file": "src/main.rs",
-      "line": 471,
+      "line": 483,
       "note": "search with no match prints explicit NO ACTIVE DECISION FOUND marker"
      },
      {
@@ -88,7 +88,7 @@
      },
      {
       "file": "src/main.rs",
-      "line": 49,
+      "line": 56,
       "note": "reject_unknown: unknown CLI args rejected (exit 2), never silently dropped"
      }
     ]
@@ -164,7 +164,7 @@
      },
      {
       "file": "src/main.rs",
-      "line": 683,
+      "line": 695,
       "note": "CLI surface: no update/delete command exists"
      },
      {
@@ -191,12 +191,12 @@
     "points": [
      {
       "file": "src/main.rs",
-      "line": 362,
+      "line": 369,
       "note": "cmd_supersede: requires from= to= reason="
      },
      {
       "file": "src/main.rs",
-      "line": 377,
+      "line": 384,
       "note": "both endpoints must exist; dangling rejected (exit 4)"
      }
     ]
@@ -272,7 +272,7 @@
      },
      {
       "file": "src/main.rs",
-      "line": 683,
+      "line": 695,
       "note": "canon side (negative): no declare-shipped command exists"
      }
     ],
@@ -327,12 +327,12 @@
      },
      {
       "file": "src/main.rs",
-      "line": 207,
+      "line": 214,
       "note": "dangling constitution ref rejected (exit 4)"
      },
      {
       "file": "src/main.rs",
-      "line": 228,
+      "line": 235,
       "note": "dangling decision ref rejected (exit 4)"
      }
     ]

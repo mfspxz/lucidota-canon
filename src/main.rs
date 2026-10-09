@@ -31,6 +31,13 @@ fn find_id(id: &str) -> Result<Option<(String, Map<String, Value>)>, StoreError>
     Ok(None)
 }
 
+/// Fields matched by `canon search`. Includes schema-2 `statement`
+/// (`statement=` wins over legacy `text=` per cmd_add_principle), so
+/// schema-2 content is discoverable (SEARCH-STATEMENT-2026-10-08).
+const SEARCH_FIELDS: &[&str] = &[
+    "id", "text", "statement", "title", "subject", "decision", "from", "to", "reason",
+];
+
 /// Parse a list-valued field: JSON array string → array; anything else →
 /// single-element array. Keeps alternatives/errors machine-readable.
 fn as_list(v: &str) -> Value {
@@ -438,11 +445,7 @@ fn cmd_search(query: &str) -> ExitCode {
             }
         };
         for e in &entries {
-            // supersession records match on from/to/reason
-            let hay: Vec<String> = ["id", "text", "title", "subject", "decision", "from", "to", "reason"]
-                .iter()
-                .map(|k| strf(e, k))
-                .collect();
+            let hay: Vec<String> = SEARCH_FIELDS.iter().map(|k| strf(e, k)).collect();
             if !hay.iter().any(|h| h.to_lowercase().contains(&q)) {
                 continue;
             }
@@ -458,7 +461,16 @@ fn cmd_search(query: &str) -> ExitCode {
             } else {
                 id
             };
-            let snippet_src = [strf(e, "text"), strf(e, "title"), strf(e, "decision"), strf(e, "reason")]
+            // C12: status is always surfaced — search never flattens it away.
+            // Schema-2 `statement` is preferred for the snippet (statement=
+            // wins over legacy text=).
+            let snippet_src = [
+                strf(e, "statement"),
+                strf(e, "text"),
+                strf(e, "title"),
+                strf(e, "decision"),
+                strf(e, "reason"),
+            ]
                 .into_iter()
                 .find(|s| !s.is_empty())
                 .unwrap_or_default();
