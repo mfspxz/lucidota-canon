@@ -27,6 +27,10 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::{Command, Output};
 
+#[path = "common/mod.rs"]
+mod common;
+use common::ANCHORS;
+
 fn fresh_dir(tag: &str) -> PathBuf {
     let d = std::env::temp_dir().join(format!("canon-verify-gaps-{}-{}", std::process::id(), tag));
     let _ = fs::remove_dir_all(&d);
@@ -368,52 +372,7 @@ fn v06_dangling_ref_actor_stamp() {
 }
 
 // --- NIH-FIND-9 re-verification: semantic anchors -------------------------------
-// (inv_id, file, line, anchor substring that must appear on the cited line.
-// Anchors verified against the tree at write time; drift fails the build.)
-const ANCHORS: &[(&str, &str, u32, &str)] = &[
-    ("INV-01", "src/main.rs", 695, "usage: canon"),
-    ("INV-01", "src/main.rs", 715, "\"context\" | \"audit\""),
-    ("INV-01", "src/store.rs", 134, "pub fn allowed_fields"),
-    ("INV-02", "src/main.rs", 483, "NO ACTIVE DECISION FOUND"),
-    (
-        "INV-02",
-        "src/context.rs",
-        252,
-        "PL state UNKNOWN, not assumed",
-    ),
-    ("INV-03", "src/store.rs", 134, "pub fn allowed_fields"),
-    ("INV-03", "src/store.rs", 169, "pub fn validate_new"),
-    ("INV-03", "src/main.rs", 56, "fn reject_unknown"),
-    (
-        "INV-04",
-        "src/context.rs",
-        252,
-        "PL state UNKNOWN, not assumed",
-    ),
-    ("INV-05", "src/store.rs", 67, "pub fn read_strict"),
-    ("INV-05", "src/store.rs", 298, "pub fn verify_chain"),
-    ("INV-06", "src/store.rs", 221, "pub fn append"),
-    ("INV-06", "src/main.rs", 695, "usage: canon"),
-    ("INV-06", "src/store.rs", 228, "duplicate-id guard"),
-    ("INV-07", "src/main.rs", 369, "fn cmd_supersede"),
-    ("INV-07", "src/main.rs", 384, "both endpoints must exist"),
-    ("INV-08", "src/context.rs", 161, "revision:"),
-    ("INV-08", "src/context.rs", 162, "working_tree:"),
-    ("INV-09", "src/store.rs", 134, "pub fn allowed_fields"),
-    ("INV-10", "src/store.rs", 134, "pub fn allowed_fields"),
-    ("INV-10", "src/main.rs", 695, "usage: canon"),
-    (
-        "INV-11",
-        "src/context.rs",
-        280,
-        "fn receipt_deterministic_given_inputs",
-    ),
-    ("INV-11", "Cargo.toml", 9, "sha2"),
-    ("INV-12", "src/store.rs", 265, "actor"),
-    ("INV-12", "src/main.rs", 214, "dangling constitution ref {:?}"),
-    ("INV-12", "src/main.rs", 235, "dangling decision ref {:?}"),
-];
-
+// (via the shared tests/common/mod.rs table — single canonical copy, no drift)
 fn nih9_reverify() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let text = fs::read_to_string(root.join("invariants.json")).expect("invariants.json missing");

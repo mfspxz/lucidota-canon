@@ -6,6 +6,10 @@
 
 use serde_json::Value;
 use std::fs;
+use std::path::PathBuf;
+
+#[path = "common/mod.rs"]
+mod common;
 
 fn load() -> Value {
     let text =
@@ -68,25 +72,72 @@ fn every_enforcement_point_resolves_to_real_file_line() {
         assert!(!points.is_empty(), "{}: ENFORCED with zero points", id);
         for p in points {
             let file = p["file"].as_str().expect("point.file");
-            let line = p["line"].as_u64().expect("point.line") as usize;
+            let line = p["line"].as_u64().expect("point.line") as u32;
             let text = fs::read_to_string(file)
                 .unwrap_or_else(|_| panic!("{}: enforcement file {:?} does not exist", id, file));
             let nlines = text.lines().count();
             assert!(
-                line >= 1 && line <= nlines,
+                (line as usize) >= 1 && (line as usize) <= nlines,
                 "{}: {:?}:{} out of range (file has {} lines)",
                 id,
                 file,
                 line,
                 nlines
             );
-            println!("{} -> {}:{} ok", id, file, line);
+            // Semantic anchor (wave-25 technique, folded in wave-37): the
+            // cited line's CONTENT must match the anchor bound to this
+            // citation — a line-range-only check passes on drifted lines.
+            let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+            common::assert_anchor(&root, id, file, line);
+            println!("{} -> {}:{} anchored ok", id, file, line);
         }
     }
     // Honest ledger: print the unenforced set so it can never hide.
     for u in &unenforced {
         println!("UNENFORCED {}", u);
     }
+}
+
+#[test]
+fn anchor_check_is_non_vacuous() {
+    // Adversarial: prove the semantic-anchor check actually fails when an
+    // anchor is pointed at wrong content. If this test ever goes green on
+    // a broken checker, the whole invariants battery is theater.
+    let root = std::env::temp_dir().join(format!("canon-anchor-neg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join("src/fake.rs"),
+        "// nothing interesting here\nlet x = 1;\n",
+    )
+    .unwrap();
+
+    // positive control: matching content passes
+    assert!(common::check_anchor(&root, "NEG-0", "src/fake.rs", 2, "let x = 1;").is_ok());
+
+    // wrong content on the cited line -> Err (the drift case)
+    let e = common::check_anchor(&root, "NEG-1", "src/fake.rs", 2, "pub fn allowed_fields")
+        .expect_err("anchor pointed at wrong content must fail");
+    assert!(e.contains("content drift"), "unexpected error: {}", e);
+
+    // line out of range -> Err (the stale-line case)
+    let e = common::check_anchor(&root, "NEG-2", "src/fake.rs", 99, "let x = 1;")
+        .expect_err("out-of-range line must fail");
+    assert!(e.contains("out of range"), "unexpected error: {}", e);
+
+    // missing file -> Err (the moved-file case)
+    let e = common::check_anchor(&root, "NEG-3", "src/gone.rs", 1, "anything")
+        .expect_err("missing file must fail");
+    assert!(e.contains("unreadable"), "unexpected error: {}", e);
+
+    // unknown citation has no anchor -> assert_anchor panics (forces the
+    // table to stay in sync with invariants.json)
+    let r = std::panic::catch_unwind(|| {
+        common::assert_anchor(&root, "NEG-4", "src/fake.rs", 2);
+    });
+    assert!(r.is_err(), "citation with no anchor must panic");
+
+    let _ = fs::remove_dir_all(&root);
 }
 
 #[test]
