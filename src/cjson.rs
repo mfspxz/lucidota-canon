@@ -36,6 +36,12 @@ fn canonical_value(v: &Value) -> Result<Value, String> {
         Value::Number(n) => {
             if n.is_f64() {
                 Err("canonical: floats are not permitted in CANON records".into())
+            } else if n.as_i64().is_none() {
+                // u64 beyond i64::MAX: outside the i64 interop contract
+                // (PL-REQ-019, XIMPL-2). Aligned with pl::canon and the
+                // Python port, which reject these at canonicalization time;
+                // the strict byte-parity pin demands all three agree.
+                Err("canonical: integer outside i64 interop range".into())
             } else {
                 Ok(v.clone())
             }
@@ -63,6 +69,21 @@ mod tests {
     #[test]
     fn floats_rejected() {
         assert!(canonical(&json!({"x":1.5})).is_err());
+    }
+    #[test]
+    fn i64_boundaries_accepted() {
+        assert!(canonical(&json!({"x":9223372036854775807i64})).is_ok());
+        assert!(canonical(&json!({"x":-9223372036854775808i64})).is_ok());
+    }
+    #[test]
+    fn u64_beyond_i64_rejected() {
+        // 2^63 parses as u64, outside the i64 interop contract (XIMPL-2).
+        let v: Value = serde_json::from_str(r#"{"x":9223372036854775808}"#).unwrap();
+        assert!(v["x"].as_u64().is_some());
+        assert!(canonical(&v).is_err());
+        // u64::MAX also rejected.
+        let v2: Value = serde_json::from_str(r#"{"x":18446744073709551615}"#).unwrap();
+        assert!(canonical(&v2).is_err());
     }
     #[test]
     fn hash_stable() {
