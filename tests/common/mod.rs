@@ -18,10 +18,10 @@ use std::path::Path;
 /// the cited line). Anchors verified against the tree at write time; drift
 /// fails the build.
 pub const ANCHORS: &[(&str, &str, u32, &str)] = &[
-    ("INV-01", "src/main.rs", 695, "usage: canon"),
-    ("INV-01", "src/main.rs", 715, "\"context\" | \"audit\""),
+    ("INV-01", "src/main.rs", 705, "usage: canon"),
+    ("INV-01", "src/main.rs", 725, "\"context\" | \"audit\""),
     ("INV-01", "src/store.rs", 134, "pub fn allowed_fields"),
-    ("INV-02", "src/main.rs", 483, "NO ACTIVE DECISION FOUND"),
+    ("INV-02", "src/main.rs", 462, "NO ACTIVE DECISION FOUND"),
     (
         "INV-02",
         "src/context.rs",
@@ -30,7 +30,7 @@ pub const ANCHORS: &[(&str, &str, u32, &str)] = &[
     ),
     ("INV-03", "src/store.rs", 134, "pub fn allowed_fields"),
     ("INV-03", "src/store.rs", 169, "pub fn validate_new"),
-    ("INV-03", "src/main.rs", 56, "fn reject_unknown"),
+    ("INV-03", "src/main.rs", 58, "fn reject_unknown"),
     (
         "INV-04",
         "src/context.rs",
@@ -40,15 +40,15 @@ pub const ANCHORS: &[(&str, &str, u32, &str)] = &[
     ("INV-05", "src/store.rs", 67, "pub fn read_strict"),
     ("INV-05", "src/store.rs", 298, "pub fn verify_chain"),
     ("INV-06", "src/store.rs", 221, "pub fn append"),
-    ("INV-06", "src/main.rs", 695, "usage: canon"),
+    ("INV-06", "src/main.rs", 705, "usage: canon"),
     ("INV-06", "src/store.rs", 228, "duplicate-id guard"),
-    ("INV-07", "src/main.rs", 369, "fn cmd_supersede"),
-    ("INV-07", "src/main.rs", 384, "both endpoints must exist"),
+    ("INV-07", "src/main.rs", 371, "fn cmd_supersede"),
+    ("INV-07", "src/main.rs", 386, "both endpoints must exist"),
     ("INV-08", "src/context.rs", 161, "revision:"),
     ("INV-08", "src/context.rs", 162, "working_tree:"),
     ("INV-09", "src/store.rs", 134, "pub fn allowed_fields"),
     ("INV-10", "src/store.rs", 134, "pub fn allowed_fields"),
-    ("INV-10", "src/main.rs", 695, "usage: canon"),
+    ("INV-10", "src/main.rs", 705, "usage: canon"),
     (
         "INV-11",
         "src/context.rs",
@@ -60,10 +60,10 @@ pub const ANCHORS: &[(&str, &str, u32, &str)] = &[
     (
         "INV-12",
         "src/main.rs",
-        214,
+        216,
         "dangling constitution ref {:?}",
     ),
-    ("INV-12", "src/main.rs", 235, "dangling decision ref {:?}"),
+    ("INV-12", "src/main.rs", 237, "dangling decision ref {:?}"),
 ];
 
 /// Look up the anchor substring for one enforcement citation.

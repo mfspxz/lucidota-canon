@@ -4,6 +4,8 @@
 //! Exit codes: 0 ok, 2 usage, 3 integrity failure, 4 semantic failure.
 use canon::{context, store, time};
 
+mod bm25;
+
 use serde_json::{json, Map, Value};
 use std::collections::BTreeMap;
 use std::process::ExitCode;
@@ -427,8 +429,9 @@ fn cmd_search(query: &str) -> ExitCode {
         eprintln!("search requires a query");
         return ExitCode::from(2);
     }
-    let q = query.to_lowercase();
-    let mut hits = 0;
+    // Depenaudit U-1: BM25 ranking replaces the O(n·m) substring scan.
+    // Collect (kind, entry, tokens) across kinds, rank once, print by score.
+    let mut docs: Vec<(String, Map<String, Value>, Vec<String>)> = Vec::new();
     for (kind, _) in store::KINDS {
         let entries = match store::read_strict(kind) {
             Ok(e) => e,
@@ -437,50 +440,57 @@ fn cmd_search(query: &str) -> ExitCode {
                 return ExitCode::from(3);
             }
         };
-        let sup = match store::read_strict("supersessions") {
-            Ok(e) => e,
-            Err(e) => {
-                eprintln!("{}", e);
-                return ExitCode::from(3);
-            }
-        };
-        for e in &entries {
-            let hay: Vec<String> = SEARCH_FIELDS.iter().map(|k| strf(e, k)).collect();
-            if !hay.iter().any(|h| h.to_lowercase().contains(&q)) {
-                continue;
-            }
-            hits += 1;
-            let id = strf(e, "id");
-            let status = if id.is_empty() {
-                "EVENT".to_string()
-            } else {
-                store::effective_status(&id, &sup, Some(&strf(e, "status"))).to_string()
-            };
-            let label = if id.is_empty() {
-                format!("{} -> {}", strf(e, "from"), strf(e, "to"))
-            } else {
-                id
-            };
-            // C12: status is always surfaced — search never flattens it away.
-            // Schema-2 `statement` is preferred for the snippet (statement=
-            // wins over legacy text=).
-            let snippet_src = [
-                strf(e, "statement"),
-                strf(e, "text"),
-                strf(e, "title"),
-                strf(e, "decision"),
-                strf(e, "reason"),
-            ]
-                .into_iter()
-                .find(|s| !s.is_empty())
-                .unwrap_or_default();
-            let snippet: String = snippet_src.chars().take(100).collect();
-            // C12: status is always surfaced — search never flattens it away
-            println!("{} {} [{}] :: {}", kind.trim_end_matches('s'), label, status, snippet);
+        for e in entries {
+            let text: String = SEARCH_FIELDS
+                .iter()
+                .map(|k| strf(&e, k))
+                .collect::<Vec<_>>()
+                .join(" ");
+            docs.push((kind.to_string(), e, bm25::tokenize(&text)));
         }
     }
-    if hits == 0 {
+    let sup = match store::read_strict("supersessions") {
+        Ok(e) => e,
+        Err(e) => {
+            eprintln!("{}", e);
+            return ExitCode::from(3);
+        }
+    };
+    let token_docs: Vec<Vec<String>> = docs.iter().map(|(_, _, t)| t.clone()).collect();
+    let ranked = bm25::rank(query, &token_docs);
+    if ranked.is_empty() {
         println!("NO ACTIVE DECISION FOUND — no canonical record matches {:?}", query);
+        return ExitCode::from(0);
+    }
+    for (idx, score) in ranked {
+        let (kind, e, _) = &docs[idx];
+        let id = strf(e, "id");
+        let status = if id.is_empty() {
+            "EVENT".to_string()
+        } else {
+            store::effective_status(&id, &sup, Some(&strf(e, "status"))).to_string()
+        };
+        let label = if id.is_empty() {
+            format!("{} -> {}", strf(e, "from"), strf(e, "to"))
+        } else {
+            id
+        };
+        // C12: status is always surfaced — search never flattens it away.
+        // Schema-2 `statement` is preferred for the snippet (statement=
+        // wins over legacy text=).
+        let snippet_src = [
+            strf(e, "statement"),
+            strf(e, "text"),
+            strf(e, "title"),
+            strf(e, "decision"),
+            strf(e, "reason"),
+        ]
+            .into_iter()
+            .find(|s| !s.is_empty())
+            .unwrap_or_default();
+        let snippet: String = snippet_src.chars().take(100).collect();
+        // C12: status is always surfaced — search never flattens it away
+        println!("{} {} [{}] bm25={:.3} :: {}", kind.trim_end_matches('s'), label, status, score, snippet);
     }
     ExitCode::from(0)
 }
