@@ -1,7 +1,7 @@
 # AUDIT-APPLICATION — canon
 
 **Slice:** brutal-audit rollout 3/8. **Date:** 2026-10-10. **Repo:** ~/workspace/canon.
-**Audited at:** `345354f`. **This pass:** TBD (filled after commit).
+**Audited at:** `345354f`. **This pass:** `bb9877f`.
 
 ## What this is
 
