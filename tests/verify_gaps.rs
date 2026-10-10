@@ -1,4 +1,4 @@
-//! Wave-25: verification-depth gap battery for SPEC-CANON.
+//! PROPERTY TESTS — Wave-25: verification-depth gap battery for SPEC-CANON.
 //!
 //! Closes SPEC-GAP-V-01..V-06 (the six MEDIUM/LOW gaps filed by the
 //! wave-23 spec-audit-canon-trace lane — invariants that were enforced

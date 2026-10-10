@@ -1,5 +1,41 @@
 # CHANGELOG — canon
 
+## 2026-10-10 — rigor-audit rollout slice 3/8 (R-1..R-12 applied)
+
+- **`docs/STORE-SCHEMA.md`** (new, R-9): frozen schema declaration for the four
+  hash-chained stores — schema 1/2 frozen, status vocabulary frozen as
+  `active | superseded | superseded_by_bypass` (one book for claims and
+  defeats; a bypassed claim moves to `superseded_by_bypass`, never silently
+  to `superseded`).
+- **`docs/TEST-POLICY.md`** (new, R-7): property vs change-detection test
+  separation; property-test expectations may never be rewritten to match a
+  behavior change without adversarial sign-off. Test files labeled.
+- **R-3:** out-of-band head copy at
+  `~/workspace/dogfood/audit/oob-heads/canon.json` (seq + head_hash per store,
+  git HEAD, binary sha256) — a store this repo never writes to. Documented
+  honest limitation: same-VM; integrity is UNKNOWN-not-PROVEN without an
+  auditor holding the head.
+- **R-8:** deployment identity is ed25519-signed (TEST-KEY — NOT FOR
+  PRODUCTION); context receipts are hash-bound but unsigned — declared
+  honestly-unsigned; their verification power is change-detection against
+  the OOB head, not provenance.
+- **R-1:** fix-verification claims in this repo (freeze evidence, gap
+  closures) are `instance-only` until a dedicated red-team wave signs off the
+  class; bypasses are mirrored into the claim log as
+  `superseded_by_bypass` — see AUDIT-APPLICATION.md.
+
+## 2026-10-09 — BM25 search, semantic anchors, cjson hardening
+
+- **`src/bm25.rs`** (depenaudit U-1): canon search now BM25-ranked
+  (REAL-ALGORITHMS.md §5); replaces the naive substring scorer.
+- **`tests/invariants.rs`** (wave-37): semantic-anchor technique — every
+  enforcement citation resolves to a real line whose CONTENT matches the
+  note, not just a line in range (independent re-verification of NIH-FIND-9).
+- **`src/cjson.rs`** (XIMPL-2, wave-34): rejects u64 beyond the i64 interop
+  range (fail-closed canonical encoding boundary).
+- **Organelle migration** (tier-A): `organelles/canon.manifest.json`,
+  `execution.json`, `MAPPING.md` added.
+
 ## 2026-10-08 — consumable interface + court integration (wave-4)
 
 - **`src/api.rs`**: `Canon::open()` (open + verify all four hash chains,

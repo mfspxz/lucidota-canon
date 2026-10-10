@@ -1,4 +1,4 @@
-//! Deployment identity integration tests (DEPLOYMENT-IDENTITY.md).
+//! PROPERTY TESTS — Deployment identity integration tests (DEPLOYMENT-IDENTITY.md).
 //!
 //! All keys are EPHEMERAL TEST KEYS generated in-process — never persisted,
 //! never production. TEST-KEY — NOT FOR PRODUCTION.

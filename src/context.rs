@@ -286,3 +286,10 @@ mod tests {
         assert_eq!(a.len(), 64);
     }
 }
+
+// HONESTLY-UNSIGNED (R-8, 2026-10-10; appended at end of file so no frozen
+// line-number citation above moves): this receipt is hash-bound, not signed.
+// Its verification power is change-detection against an out-of-band head copy
+// (~/workspace/dogfood/audit/oob-heads/canon.json), not provenance. The
+// deployment manifest (src/deploy.rs) is the signed artifact; it carries a
+// TEST-KEY and says so.

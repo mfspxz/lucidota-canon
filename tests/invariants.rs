@@ -1,5 +1,5 @@
-//! Work-order A2: every constitutional invariant must cite enforcement that
-//! actually exists. This test loads invariants.json (the machine-readable
+//! PROPERTY TESTS — Work-order A2: every constitutional invariant must cite
+//! enforcement that actually exists. This test loads invariants.json (the machine-readable
 //! projection of the frozen constitution) and proves each cited
 //! ENFORCEMENT POINT resolves to a real file:line in this repo.
 //! UNENFORCED entries must carry an explicit reason — silent drops fail.

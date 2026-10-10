@@ -1,4 +1,4 @@
-//! §56 / work-order A5 — hash-chain correctness suite.
+//! PROPERTY TESTS — §56 / work-order A5 — hash-chain correctness suite.
 //!
 //! Covers: canonical encoding, prev-hash linkage, corruption detection,
 //! mid-file truncation detection, end-truncation detection boundary

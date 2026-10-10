@@ -357,6 +357,10 @@ pub fn index(entries: &[Map<String, Value>]) -> BTreeMap<String, &Map<String, Va
 
 #[cfg(test)]
 mod tests {
+    // CHANGE-DETECTION TESTS — assert current read-view semantics (not
+    // security invariants). If these fail after a behavior change, the
+    // behavior moved; update only after adversarial sign-off per
+    // docs/TEST-POLICY.md.
     use super::*;
     #[test]
     fn kinds_have_files() {
