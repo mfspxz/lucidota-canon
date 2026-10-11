@@ -216,7 +216,7 @@ mod tests {
 
         // verify against an empty store: chains trivially hold
         let v = host.call(&ctx, "ca", "verify", serde_json::json!({})).expect("verify");
-        assert_eq!(v["verified"], true);
+        assert_eq!(v.output["verified"], true);
 
         // fail-closed write then read-back (real store::append path, schema-2 valid)
         let entry = serde_json::json!({
@@ -230,12 +230,12 @@ mod tests {
             serde_json::json!({"kind": "decisions", "entry": entry}));
         match add_res {
             Ok(r) => {
-                assert_eq!(r["appended"], true);
+                assert_eq!(r.output["appended"], true);
                 let g = host.call(&ctx, "ca", "get", serde_json::json!({"id": "TEST-1"})).expect("get");
-                assert_eq!(g["found"], true);
-                assert_eq!(g["kind"], "decisions");
+                assert_eq!(g.output["found"], true);
+                assert_eq!(g.output["kind"], "decisions");
                 let s = host.call(&ctx, "ca", "search", serde_json::json!({"query": "green"})).expect("search");
-                assert!(s["hits"].as_array().unwrap().len() >= 1);
+                assert!(s.output["hits"].as_array().unwrap().len() >= 1);
             }
             Err(e) => {
                 // schema-2 validation is strict; record the real demand, don't fake it
@@ -245,7 +245,7 @@ mod tests {
 
         // unknown id -> clean miss, still receipted
         let miss = host.call(&ctx, "ca", "get", serde_json::json!({"id": "NOPE"})).expect("miss");
-        assert_eq!(miss["found"], false);
+        assert_eq!(miss.output["found"], false);
 
         let n = host.verify_chain().expect("receipt chain must verify");
         assert!(n >= 5, "expected >=5 receipts, got {n}");
