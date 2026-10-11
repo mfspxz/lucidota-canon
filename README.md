@@ -1,3 +1,5 @@
+[Active R&D Lab] — no CI runs on record; active development, expect rough edges.
+
 # CANON — Canonical Engineering Authority (RFC-002)
 
 CANON records what a project **must be** / **was decided** / **was superseded**.
